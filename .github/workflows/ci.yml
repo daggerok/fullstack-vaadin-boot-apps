@@ -5,7 +5,6 @@ env:
   SPRING_PROFILES_ACTIVE: ci
 jobs:
   mvnw:
-    strategy:
     runs-on: ubuntu-latest
     name: java-${{ matrix.java }} just build with mvnw maven wrapper
     steps:
@@ -25,7 +24,6 @@ jobs:
     - run: command -v docker >/dev/null 2>&1 || { echo >&2 "I require docker but it's not installed.  Aborting."; exit 1; }
     - run: cd $GITHUB_WORKSPACE && ./mvnw
   step-0-getting-started:
-    strategy:
     runs-on: ubuntu-latest
     name: java-${{ matrix.java }} step-0-getting-started
     steps:
