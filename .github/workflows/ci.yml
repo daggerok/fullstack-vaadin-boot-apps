@@ -22,7 +22,8 @@ jobs:
       with:
         java-version: ${{ env.JAVA_VERSION }}
     - run: command -v docker >/dev/null 2>&1 || { echo >&2 "I require docker but it's not installed.  Aborting."; exit 1; }
-    - run: cd $GITHUB_WORKSPACE && ./mvnw
+    - run: cd $GITHUB_WORKSPACE ; ./mvnw -B dependency:resolve dependency:resolve-plugins
+    - run: cd $GITHUB_WORKSPACE ; ./mvnw
   step-0-getting-started:
     runs-on: ubuntu-latest
     name: java-${{ matrix.java }} step-0-getting-started
@@ -44,11 +45,12 @@ jobs:
     - run: command -v docker >/dev/null 2>&1 || { echo >&2 "I require docker but it's not installed.  Aborting."; exit 1; }
     - run: sudo apt-get install -y httpie curl jq
     - run: npm i -g wait-port
-    - run: cd $GITHUB_WORKSPACE && ./mvnw -P production -f step-0-getting-started package spring-boot:build-image docker-compose:up
+    - run: cd $GITHUB_WORKSPACE ; ./mvnw -B dependency:resolve dependency:resolve-plugins
+    - run: cd $GITHUB_WORKSPACE ; ./mvnw -P production -f step-0-getting-started package spring-boot:build-image docker-compose:up
     #- run: ( bash $GITHUB_WORKSPACE/step-0-application-without-security/target/*jar --spring.profiles.active=ci & ) || echo ...
     - run: while [[ ! 200 -eq `curl -s -o /dev/null -w "%{http_code}" 0:8080/actuator/health` ]] ; do sleep 1s ; echo -n '.' ; done
     - run: wait-port 8080
     - run: http get :8080
     - run: curl 0:8080
     - run: http --ignore-stdin post :8080/actuator/shutdown
-    - run: cd $GITHUB_WORKSPACE && ./mvnw -f step-0-getting-started docker-compose:down
+    - run: cd $GITHUB_WORKSPACE ; ./mvnw -f step-0-getting-started docker-compose:down
