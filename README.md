@@ -24,6 +24,16 @@ generate new project by using: [vaadin starter](https://vaadin.com/start/v14)
 ./mvnw -f step-0-getting-started package spring-boot:build-image docler-compose:up
 ```
 
+### docker
+
+```bash
+# dev
+docker run --rm -it --name maven -v /tmp/fullstack-vaadin-boot-apps.m2:/root/.m2 -v `pwd`:/root/app -w /root/app maven:3.8.1-openjdk-11-slim ./mvnw -f step-0-getting-started package spring-boot:run
+# prod
+docker run --rm -it --name maven -v /tmp/fullstack-vaadin-boot-apps.m2:/root/.m2 -v `pwd`:/root/app -w /root/app maven:3.8.1-openjdk-11-slim ./mvnw -f step-0-getting-started package
+./mvnw -f step-0-getting-started spring-boot:build-image docler-compose:up
+```
+
 ## versioning and releases
 
 see [.mvn/release.sh](.mvn/release.sh) script for details.
