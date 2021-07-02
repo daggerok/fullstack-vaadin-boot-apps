@@ -1,12 +1,24 @@
 name: CI
-on: [push]
+on:
+  push:
+  #pull_request:
+  workflow_dispatch:
+    inputs:
+      trigger:
+        description: Type m to triggre manual jobs
+        required: false
+        default: ''
 env:
   JAVA_VERSION: 11
   SPRING_PROFILES_ACTIVE: ci
+  MAVEN_PROJECTS: ":fullstack-vaadin-boot-apps,:step-0-getting-started"
 jobs:
   mvnw:
+    name: maven wrapper build
+    if: startsWith(github.event.inputs.trigger, 'm')
+      || startsWith(github.event.inputs.trigger, 'M')
     runs-on: ubuntu-latest
-    name: java-${{ matrix.java }} just build with mvnw maven wrapper
+    timeout-minutes: 5
     steps:
     - uses: actions/checkout@v1
     - uses: actions/cache@v1
@@ -16,17 +28,22 @@ jobs:
           ~/.npm
           ~/.gradle
           ~/.docker
+          /tmp/fullstack-vaadin-boot-apps.m2
           !~/.m2/repository/com/gituhb/daggerok
         key: ${{ runner.os }}-npm-${{ hashFiles('**/pom.xml') }}
     - uses: actions/setup-java@v1
       with:
         java-version: ${{ env.JAVA_VERSION }}
     - run: command -v docker >/dev/null 2>&1 || { echo >&2 "I require docker but it's not installed.  Aborting."; exit 1; }
-    - run: cd $GITHUB_WORKSPACE ; ./mvnw -B dependency:resolve dependency:resolve-plugins
+    - run: cd $GITHUB_WORKSPACE ; ./mvnw -pl ${{ env.MAVEN_PROJECTS }} -B dependency:resolve dependency:resolve-plugins >/dev/null
     - run: cd $GITHUB_WORKSPACE ; ./mvnw
   step-0-getting-started:
+    name: 'step 0: getting started'
+    if: github.event.inputs.trigger == ''
+      || !startsWith(github.event.inputs.trigger, 'm')
+      || !startsWith(github.event.inputs.trigger, 'M')
     runs-on: ubuntu-latest
-    name: java-${{ matrix.java }} step-0-getting-started
+    timeout-minutes: 5
     steps:
     - uses: actions/checkout@v1
     - uses: actions/cache@v1
@@ -36,6 +53,7 @@ jobs:
           ~/.npm
           ~/.gradle
           ~/.docker
+          /tmp/fullstack-vaadin-boot-apps.m2
           !~/.m2/repository/com/gituhb/daggerok
         key: ${{ runner.os }}-npm-${{ hashFiles('**/pom.xml') }}
     - uses: actions/setup-node@v1
@@ -44,13 +62,81 @@ jobs:
         java-version: ${{ env.JAVA_VERSION }}
     - run: command -v docker >/dev/null 2>&1 || { echo >&2 "I require docker but it's not installed.  Aborting."; exit 1; }
     - run: sudo apt-get install -y httpie curl jq
-    - run: npm i -g wait-port
-    - run: cd $GITHUB_WORKSPACE ; ./mvnw -B dependency:resolve dependency:resolve-plugins
+    - run: cd $GITHUB_WORKSPACE ; ./mvnw -pl ${{ env.MAVEN_PROJECTS }} -B dependency:resolve dependency:resolve-plugins >/dev/null
     - run: cd $GITHUB_WORKSPACE ; ./mvnw -P production -f step-0-getting-started package spring-boot:build-image docker-compose:up
     #- run: ( bash $GITHUB_WORKSPACE/step-0-application-without-security/target/*jar --spring.profiles.active=ci & ) || echo ...
-    - run: while [[ ! 200 -eq `curl -s -o /dev/null -w "%{http_code}" 0:8080/actuator/health` ]] ; do sleep 1s ; echo -n '.' ; done
-    - run: wait-port 8080
+    - run: retry=20 ; while [[ "$retry" -gt 0 ]] && [[ ! 200 -eq `curl -s -o /dev/null -w "%{http_code}" 0:8080/actuator/health` ]] ; do sleep 10s ; let "retry-=1" ; echo -n '.' ; done
+    - run: npx wait-port 8080
     - run: http get :8080
     - run: curl 0:8080
     - run: http --ignore-stdin post :8080/actuator/shutdown
     - run: cd $GITHUB_WORKSPACE ; ./mvnw -f step-0-getting-started docker-compose:down
+  test-step-0-getting-started-with-docker:
+    name: 'step 0: getting started in docker'
+    if: github.event.inputs.trigger == ''
+      || !startsWith(github.event.inputs.trigger, 'm')
+      || !startsWith(github.event.inputs.trigger, 'M')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v1
+      - uses: actions/cache@v1
+        with:
+          path: |
+            ~/.m2
+            ~/.npm
+            ~/.gradle
+            ~/.docker
+            /tmp/fullstack-vaadin-boot-apps.m2
+            !~/.m2/repository/com/gituhb/daggerok
+          key: ${{ runner.os }}-npm-${{ hashFiles('**/pom.xml') }}
+      - uses: actions/setup-java@v1
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+      - run: rm -rf $GITHUB_WORKSPACE/step-0-getting-started/target
+      - run: ls -lah $GITHUB_WORKSPACE/step-0-getting-started/target/*.jar || echo oops
+      #
+      - run: cd $GITHUB_WORKSPACE ; docker run --rm -i --name maven-resolve -v /tmp/fullstack-vaadin-boot-apps.m2:/root/.m2 -v `pwd`:/root/app -w /root/app maven:3.8.1-openjdk-11-slim ./mvnw -pl ${{ env.MAVEN_PROJECTS }} -B dependency:resolve dependency:resolve-plugins >/dev/null
+      - run: cd $GITHUB_WORKSPACE ; docker run --rm -i --name maven-package -v /tmp/fullstack-vaadin-boot-apps.m2:/root/.m2 -v `pwd`:/root/app -w /root/app maven:3.8.1-openjdk-11-slim ./mvnw -f step-0-getting-started -P production package
+      - run: ls -lah $GITHUB_WORKSPACE/step-0-getting-started/target/*.jar
+      #
+      - run: command -v docker >/dev/null 2>&1 || { echo >&2 "I require docker but it's not installed.  Aborting."; exit 1; }
+      - run: cd $GITHUB_WORKSPACE ; ./mvnw -pl ${{ env.MAVEN_PROJECTS }} -B dependency:resolve dependency:resolve-plugins >/dev/null
+      #
+      - run: sudo chown -Rfv $USER $GITHUB_WORKSPACE
+      - run: cd $GITHUB_WORKSPACE ; ./mvnw -f step-0-getting-started -P production spring-boot:build-image docker-compose:up
+      #
+      - run: sudo apt-get install -y httpie curl jq
+      - run: retry=20 ; while [[ "$retry" -gt 0 ]] && [[ ! 200 -eq `curl -s -o /dev/null -w "%{http_code}" 0:8080/actuator/health` ]] ; do sleep 10s ; ((retry--)) ; echo -n '.' ; done
+      - run: npx wait-port 8080
+      - run: http get :8080
+      - run: curl 0:8080
+      - run: http --ignore-stdin post :8080/actuator/shutdown
+      - run: cd $GITHUB_WORKSPACE ; ./mvnw -f step-0-getting-started docker-compose:down
+  dependency-updates:
+    name: dependency updates
+    if: startsWith(github.event.inputs.trigger, 'm')
+      || startsWith(github.event.inputs.trigger, 'M')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - run: |
+          echo "Trigger: ${{ github.event.inputs.trigger }}"
+      - uses: actions/checkout@v2
+      - uses: actions/cache@v2
+        with:
+          path: |
+            ~/.m2
+            ~/.npm
+            ~/.gradle
+            ~/.docker
+            /tmp/fullstack-vaadin-boot-apps.m2
+            !~/.m2/repository/com/gituhb/daggerok
+          key: ${{ runner.os }}-npm-${{ hashFiles('**/pom.xml') }}
+      - uses: actions/setup-java@v1
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+      - run: ./mvnw -pl ${{ env.MAVEN_PROJECTS }} -B dependency:resolve dependency:resolve-plugins >/dev/null
+      - run: ./mvnw versions:display-parent-updates
+      - run: ./mvnw versions:display-plugin-updates
+      - run: ./mvnw versions:display-property-updates
