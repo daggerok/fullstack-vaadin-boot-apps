@@ -51,7 +51,7 @@
     "webpack-merge": "4.2.2",
     "raw-loader": "3.1.0",
     "compression-webpack-plugin": "4.0.1",
-    "terser": "4.6.7",
+    "terser": "4.8.1",
     "css-loader": "4.2.1",
     "file-loader": "6.1.0",
     "extra-watch-webpack-plugin": "1.0.3",
